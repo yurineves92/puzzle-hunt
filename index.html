@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#17130f">
+  <title>Puzzle Hunt</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-pixel">
+  <div id="app">
+    <!-- Quadro de missões / forja -->
+    <section id="hub" class="screen">
+      <header class="hub-head">
+        <div class="logo">PUZZLE<span>HUNT</span></div>
+        <div class="hub-btns">
+          <button id="btn-profile" class="icon-btn wide" aria-label="Perfil">👤 <span>Perfil</span></button>
+          <button id="btn-mute" class="icon-btn" aria-label="Som">🔊</button>
+        </div>
+      </header>
+      <div id="equip-card" class="card"></div>
+      <nav class="tabs">
+        <button data-tab="quests" class="active">Missões</button>
+        <button data-tab="forge">Forja</button>
+      </nav>
+      <div id="tab-quests" class="tab-body"><ul id="quest-list"></ul></div>
+      <div id="tab-forge" class="tab-body hidden">
+        <h3>Bolsa</h3>
+        <div id="bag"></div>
+        <h3>Armas</h3>
+        <ul id="forge-list"></ul>
+      </div>
+    </section>
+
+    <!-- Caçada -->
+    <section id="game" class="screen hidden">
+      <div class="topbar">
+        <button id="btn-pause" class="icon-btn" aria-label="Pausar">❚❚</button>
+        <div id="quest-title"></div>
+        <div id="carts" title="Desmaios"></div>
+      </div>
+
+      <!-- Faixa de caçada: o caçador persegue o monstro; a placa mostra a vida que falta. -->
+      <div id="stage">
+        <div id="habitat"></div>
+        <div id="ambient"></div>
+        <div id="hunter-sprite"></div>
+        <div id="monster-sprite"></div>
+        <div id="stage-hud">
+          <div class="mon-head">
+            <span id="monster-name"></span>
+            <span id="rage" class="badge rage hidden">FÚRIA</span>
+            <span id="stun" class="badge stun hidden">PRESO</span>
+          </div>
+          <div class="bar"><div id="monster-hp-lag" class="fill lag"></div><div id="monster-hp" class="fill monster"></div></div>
+          <div id="weak" class="weak-row"></div>
+        </div>
+        <div id="hp-sign"><small>VIDA</small><b id="hp-left">0</b></div>
+        <div id="telegraph"><span id="next-attack"></span></div>
+      </div>
+
+      <!-- Contadores por elemento (carregam os poderes) e as jogadas no centro. -->
+      <div id="counters">
+        <button id="counter-0" class="counter"></button>
+        <button id="counter-1" class="counter"></button>
+        <div id="moves-box"><span class="mv-label">♥ JOGADAS</span><b id="moves">0</b></div>
+        <button id="counter-2" class="counter"></button>
+        <button id="counter-3" class="counter"></button>
+      </div>
+
+      <div id="hunter-hud" class="card">
+        <span class="h-label">Caçador</span>
+        <div class="bar"><div id="hunter-hp" class="fill hunter"></div><span id="hunter-hp-text"></span></div>
+        <button id="btn-special" aria-label="Especial da arma"><span id="special-icon"></span></button>
+      </div>
+
+      <div id="board-wrap">
+        <div id="board"></div>
+        <div id="combo-text"></div>
+        <div id="toast"></div>
+      </div>
+    </section>
+
+    <div id="vignette"></div>
+
+    <!-- Apresentação da missão -->
+    <div id="intro" class="modal hidden">
+      <div class="modal-box">
+        <div class="m-kicker">Missão de Caça</div>
+        <div id="intro-art"></div>
+        <h2 id="intro-title"></h2>
+        <div id="intro-place" class="muted"></div>
+        <ul id="intro-tips"></ul>
+        <button id="btn-go" class="btn primary">Partir!</button>
+      </div>
+    </div>
+
+    <div id="profile" class="modal hidden">
+      <div class="modal-box">
+        <h2>Perfil</h2>
+        <div id="profile-body"></div>
+        <div class="modal-actions"><button id="btn-profile-close" class="btn">Fechar</button></div>
+      </div>
+    </div>
+
+    <div id="pause" class="modal hidden">
+      <div class="modal-box">
+        <h2>Pausado</h2>
+        <div class="modal-actions">
+          <button id="btn-resume" class="btn primary">Continuar</button>
+          <button id="btn-quit" class="btn">Desistir</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="result" class="modal hidden">
+      <div class="modal-box">
+        <h2 id="result-title"></h2>
+        <div id="result-stars"></div>
+        <p id="result-text"></p>
+        <div id="result-drops"></div>
+        <div class="modal-actions">
+          <button id="btn-next" class="btn primary">Próxima</button>
+          <button id="btn-retry" class="btn">Repetir</button>
+          <button id="btn-hub" class="btn">Missões</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="fx"></canvas>
+
+  <script src="js/data.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/pixel.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/game.js"></script>
+  <script type="module" src="js/cloud.js"></script>
+</body>
+</html>

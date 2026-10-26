@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Pixel art</title>
+  <style>
+    body { margin: 0; padding: 12px; background: #2a2030; color: #eee; font-family: sans-serif; display: flex; flex-wrap: wrap; gap: 12px; }
+    figure { margin: 0; background: #4a3a52; border-radius: 8px; padding: 6px; text-align: center; font-size: 12px; }
+    img { image-rendering: pixelated; display: block; }
+  </style>
+</head>
+<body>
+  <script src="../js/data.js"></script>
+  <script src="../js/pixel.js"></script>
+  <script>
+    // Página só para revisar os sprites em pixel art ampliados.
+    // Personagens: recortes da arte original (gerados por dev/cutout.html).
+    for (const id of ['jagras', 'kulu', 'pukei', 'anjanath', 'rathalos']) {
+      const f = document.createElement('figure');
+      f.innerHTML = `<img src="../assets/pixel/${id}.png" height="220" style="image-rendering:auto"><figcaption>${id}</figcaption>`;
+      document.body.appendChild(f);
+    }
+    // Peças (normais e especiais) e ícones.
+    const row = document.createElement('figure');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;max-width:960px;padding:10px';
+    const tiles = [];
+    for (let k = 0; k < 5; k++) for (const sp of [null, 'line-h', 'line-v', 'weak']) tiles.push({ key: k, special: sp });
+    tiles.push({ key: -1, special: null });
+    row.innerHTML = tiles.map((t) => `<img src="${pixelTile(t)}" width="64" height="64">`).join('')
+      + Object.keys(PIXEL_ICONS).map((id) => `<span style="display:inline-block;text-align:center;font-size:10px;width:72px"><img src="${pixelIcon(id)}" width="60" height="60"><br>${id}</span>`).join('');
+    document.body.appendChild(row);
+  </script>
+</body>
+</html>

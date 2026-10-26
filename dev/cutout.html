@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Recorte dos personagens</title>
+  <style>
+    body { margin: 0; padding: 12px; background: #2a2030; color: #eee; font-family: sans-serif; display: flex; flex-wrap: wrap; gap: 12px; }
+    figure { margin: 0; padding: 6px; border-radius: 8px; text-align: center; font-size: 12px;
+      background: repeating-conic-gradient(#5a4a62 0 25%, #4a3a52 0 50%) 0 0 / 16px 16px; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script>
+    // Recorta os personagens da arte original (assets/source/arte-original.png) e remove o fundo.
+    // `box` = [x, y, largura, altura] na imagem original; `erase` = pedaços do fundo a descartar
+    // (faixa do banner, chapéus, objetos de outros personagens), nas mesmas coordenadas.
+    const CHARACTERS = [
+      { id: 'jagras', box: [2, 30, 206, 124], erase: [[74, 30, 44, 24], [116, 30, 33, 16], [148, 30, 34, 14], [72, 52, 30, 9], [44, 108, 18, 8], [140, 129, 6, 9], [72, 44, 46, 5]], opts: { openBottom: false, keep: [[128, 108, 22, 46], [150, 110, 20, 16]] } },
+      { id: 'kulu', box: [208, 2, 118, 155], erase: [[295, 0, 32, 44], [216, 66, 36, 22], [278, 0, 18, 14], [242, 22, 9, 11], [246, 66, 8, 22], [232, 94, 8, 8], [204, 84, 6, 8], [287, 12, 9, 30], [249, 80, 7, 9]], opts: { keep: [[295, 46, 18, 15]] } },
+      { id: 'pukei', box: [326, 16, 146, 140], erase: [[420, 12, 52, 20], [400, 26, 20, 11]] },
+      { id: 'anjanath', box: [168, 297, 174, 148], erase: [[176, 324, 48, 36], [166, 414, 20, 20], [166, 418, 56, 30], [216, 338, 13, 17], [214, 426, 15, 22]], opts: { relax: [[220, 368, 95, 76, 0.45, 0.28, 0.28]] } },
+      { id: 'rathalos', box: [344, 297, 168, 152], erase: [[486, 296, 30, 34], [446, 296, 26, 24], [472, 296, 14, 10], [470, 296, 14, 26], [420, 296, 52, 21], [480, 326, 32, 10]] },
+    ];
+
+    function hsv(r, g, b) {
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      return { s: max ? (max - min) / max : 0, v: max / 255 };
+    }
+
+    function cutout(src, [bx, by, bw, bh], erase = [], opts = {}) {
+      // `openBottom: false` trata a borda de baixo da caixa como chão: o vão entre as pernas
+      // (ex.: a juba escura do peito do Jagras) fica fechado e é preenchido com a arte original.
+      const { bridge = 3, dilate = 1, minV = 0.58, minS = 0.42, minSV = 0.38, openBottom = true } = opts;
+      const ctx = src.getContext('2d');
+      const data = ctx.getImageData(bx, by, bw, bh).data;
+      const n = bw * bh;
+      const erased = new Uint8Array(n);
+      for (const [ex, ey, ew, eh] of erase) {
+        for (let y = ey; y < ey + eh; y++) for (let x = ex; x < ex + ew; x++) {
+          const cx = x - bx, cy = y - by;
+          if (cx >= 0 && cy >= 0 && cx < bw && cy < bh) erased[cy * bw + cx] = 1;
+        }
+      }
+      const grow = (m, times) => {
+        for (let k = 0; k < times; k++) {
+          const next = m.slice();
+          for (let i = 0; i < n; i++) {
+            if (m[i]) continue;
+            const x = i % bw, y = (i / bw) | 0;
+            if ((x > 0 && m[i - 1]) || (x < bw - 1 && m[i + 1]) || (y > 0 && m[i - bw]) || (y < bh - 1 && m[i + bw])) next[i] = 1;
+          }
+          m = next;
+        }
+        return m;
+      };
+      // `relax` = [x, y, w, h, minV, minS, minSV]: dentro dessas áreas, cores mais escuras também
+      // contam como personagem (asas e pernas escuras que o limite padrão confunde com o fundo).
+      const thresholds = new Array(n).fill([minV, minS, minSV]);
+      for (const [rx, ry, rw, rh, ...t] of opts.relax || []) {
+        for (let y = ry; y < ry + rh; y++) for (let x = rx; x < rx + rw; x++) {
+          const cx = x - bx, cy = y - by;
+          if (cx >= 0 && cy >= 0 && cx < bw && cy < bh) thresholds[cy * bw + cx] = t;
+        }
+      }
+      let seed = new Uint8Array(n);
+      for (let i = 0; i < n; i++) {
+        const { s, v } = hsv(data[i * 4], data[i * 4 + 1], data[i * 4 + 2]);
+        const [tv, ts, tsv] = thresholds[i];
+        seed[i] = !erased[i] && (v > tv || (s > ts && v > tsv)) ? 1 : 0;
+      }
+      // Faz a ponte por cima do contorno preto que separa as partes do corpo.
+      seed = grow(seed, bridge);
+      // Maior componente conectada (8 vizinhos) das sementes.
+      const comp = new Int32Array(n).fill(-1);
+      let best = -1, bestSize = 0, label = 0;
+      for (let i = 0; i < n; i++) {
+        if (!seed[i] || comp[i] >= 0) continue;
+        const stack = [i];
+        comp[i] = label;
+        let size = 0;
+        while (stack.length) {
+          const p = stack.pop();
+          size++;
+          const x = p % bw, y = (p / bw) | 0;
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx, ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= bw || ny >= bh) continue;
+            const q = ny * bw + nx;
+            if (seed[q] && comp[q] < 0) { comp[q] = label; stack.push(q); }
+          }
+        }
+        if (size > bestSize) { bestSize = size; best = label; }
+        label++;
+      }
+      let mask = new Uint8Array(n);
+      for (let i = 0; i < n; i++) mask[i] = comp[i] === best ? 1 : 0;
+      // Dilata mais um pouco para recuperar o contorno escuro em volta.
+      mask = grow(mask, dilate);
+      // Preenche buracos: o que não é alcançável a partir da borda sem cruzar a máscara é interior.
+      const outside = new Uint8Array(n);
+      const stack = [];
+      for (let x = 0; x < bw; x++) { stack.push(x); if (openBottom) stack.push((bh - 1) * bw + x); }
+      for (let y = 0; y < bh; y++) { stack.push(y * bw, y * bw + bw - 1); }
+      while (stack.length) {
+        const p = stack.pop();
+        if (outside[p] || mask[p]) continue;
+        outside[p] = 1;
+        const x = p % bw, y = (p / bw) | 0;
+        if (x > 0) stack.push(p - 1);
+        if (x < bw - 1) stack.push(p + 1);
+        if (y > 0) stack.push(p - bw);
+        if (y < bh - 1) stack.push(p + bw);
+      }
+      for (let i = 0; i < n; i++) if (erased[i]) outside[i] = 1;
+      // `keep` = partes escuras do personagem que a detecção confunde com o fundo; entram sempre.
+      for (const [kx, ky, kw, kh] of opts.keep || []) {
+        for (let y = ky; y < ky + kh; y++) for (let x = kx; x < kx + kw; x++) {
+          const cx = x - bx, cy = y - by;
+          if (cx >= 0 && cy >= 0 && cx < bw && cy < bh) outside[cy * bw + cx] = 0;
+        }
+      }
+      // Recorta no retângulo justo da máscara.
+      let x0 = bw, y0 = bh, x1 = 0, y1 = 0;
+      for (let i = 0; i < n; i++) {
+        if (outside[i]) continue;
+        const x = i % bw, y = (i / bw) | 0;
+        x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+      }
+      const out = document.createElement('canvas');
+      out.width = x1 - x0 + 1;
+      out.height = y1 - y0 + 1;
+      const octx = out.getContext('2d');
+      const img = octx.createImageData(out.width, out.height);
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const i = y * bw + x, o = ((y - y0) * out.width + (x - x0)) * 4;
+        if (outside[i]) continue;
+        img.data.set([data[i * 4], data[i * 4 + 1], data[i * 4 + 2], 255], o);
+      }
+      octx.putImageData(img, 0, 0);
+      out.dataset.origin = `${bx + x0},${by + y0}`;
+      return out;
+    }
+
+    window.CUTOUTS = {};
+    const src = document.createElement('canvas');
+    const original = new Image();
+    original.onload = () => {
+      src.width = original.width;
+      src.height = original.height;
+      src.getContext('2d').drawImage(original, 0, 0);
+      for (const ch of CHARACTERS) {
+        const c = cutout(src, ch.box, ch.erase, ch.opts);
+        CUTOUTS[ch.id] = c;
+        const f = document.createElement('figure');
+        c.style.width = `${c.width * 2}px`;
+        f.appendChild(c);
+        f.insertAdjacentHTML('beforeend', `<figcaption>${ch.id} ${c.width}x${c.height} @${c.dataset.origin}</figcaption>`);
+        document.body.appendChild(f);
+      }
+      window.READY = true;
+    };
+
+    // Inspeção: inspect('jagras') mostra o recorte ampliado ao lado do trecho original, com uma
+    // grade nas coordenadas da imagem original (linha a cada 10 px), para medir erase/keep.
+    window.inspect = (id, scale = 4) => {
+      const ch = CHARACTERS.find((c) => c.id === id);
+      const [bx, by, bw, bh] = ch.box;
+      const draw = (paint) => {
+        const c = document.createElement('canvas');
+        c.width = bw * scale;
+        c.height = bh * scale;
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        ctx.fillStyle = '#9c9';
+        ctx.fillRect(0, 0, c.width, c.height);
+        paint(ctx);
+        ctx.strokeStyle = 'rgba(255,0,255,.55)';
+        ctx.fillStyle = '#f0f';
+        ctx.font = '11px monospace';
+        for (let x = Math.ceil(bx / 10) * 10; x < bx + bw; x += 10) {
+          ctx.beginPath(); ctx.moveTo((x - bx) * scale + .5, 0); ctx.lineTo((x - bx) * scale + .5, c.height); ctx.stroke();
+          ctx.fillText(x, (x - bx) * scale + 2, 11);
+        }
+        for (let y = Math.ceil(by / 10) * 10; y < by + bh; y += 10) {
+          ctx.beginPath(); ctx.moveTo(0, (y - by) * scale + .5); ctx.lineTo(c.width, (y - by) * scale + .5); ctx.stroke();
+          ctx.fillText(y, 2, (y - by) * scale - 2);
+        }
+        return c;
+      };
+      const cut = CUTOUTS[id];
+      const [ox, oy] = cut.dataset.origin.split(',').map(Number);
+      const a = draw((ctx) => ctx.drawImage(src, bx, by, bw, bh, 0, 0, bw * scale, bh * scale));
+      const b = draw((ctx) => ctx.drawImage(cut, (ox - bx) * scale, (oy - by) * scale, cut.width * scale, cut.height * scale));
+      document.body.innerHTML = '';
+      document.body.style.display = 'block';
+      for (const c of [a, b]) { c.style.display = 'block'; c.style.marginBottom = '8px'; document.body.appendChild(c); }
+      return `${id}: caixa ${bx},${by} ${bw}x${bh}`;
+    };
+    original.src = '../assets/source/arte-original.png';
+  </script>
+</body>
+</html>
