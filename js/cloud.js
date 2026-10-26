@@ -17,17 +17,17 @@ const Cloud = {
   // `cb(user)` é chamado no login, no logout e logo após a página abrir.
   onChange(cb) { listeners.push(cb); },
 
+  // Só pela janela de login: no GitHub Pages o authDomain (firebaseapp.com) é outro site, e o
+  // login por redirecionamento perde o resultado nos navegadores que isolam o armazenamento.
   async signIn() {
-    const provider = new authSdk.GoogleAuthProvider();
     try {
-      await authSdk.signInWithPopup(auth, provider);
+      await authSdk.signInWithPopup(auth, new authSdk.GoogleAuthProvider());
     } catch (e) {
-      // Alguns navegadores de celular bloqueiam a janela; aí vai pelo redirecionamento.
-      if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') {
-        await authSdk.signInWithRedirect(auth, provider);
-      } else if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
-        throw e;
+      if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return;
+      if (e.code === 'auth/popup-blocked') {
+        throw new Error('o navegador bloqueou a janela de login. Permita pop-ups deste site e tente de novo.');
       }
+      throw e;
     }
   },
 
